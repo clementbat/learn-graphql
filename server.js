@@ -11,8 +11,15 @@ db.once('open', function() {
   console.info('Connected to the mondo DB')
 
   var userSchema = mongoose.Schema({
-    username: String,
-    password: String
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    }
   });
   
   userSchema.methods.validateUserProps = function () {
@@ -32,6 +39,7 @@ db.once('open', function() {
     type Query {
       createUser(password: String!, username: String!): userSchema
       listUsers: [String]
+      removeUser(username: String!): String
     }
   `);
 
@@ -57,11 +65,22 @@ db.once('open', function() {
         throw 'password or username is not long enough'
       }
     },
+    removeUser: (args) => {
+      var userToRemove = new User({ username: args.username });
+
+      var userInDb = db.collection('users').find({username: args.username})
+      if (userInDb) {
+        db.collection('users').remove({username: args.username})
+      }
+      return 'User has been deleted'
+    },
     listUsers: () => {
-      return db.collection('users').find({}).toArray()
+      return db.collection('users').find({}, { _id: 0, username: 1}).toArray()
         .then(function(res) {
-          return res;
-        });
+          return res
+            .map(item => new User({username: item.username}))
+            .map(item => item.username)
+        })
     },
   };
 

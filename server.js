@@ -7,7 +7,7 @@ mongoose.connect('mongodb://localhost/test');
 
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
-db.once('open', function() {
+db.once('open', () => {
   console.info('Connected to the mondo DB')
 
   var userSchema = mongoose.Schema({
@@ -22,7 +22,7 @@ db.once('open', function() {
     }
   });
   
-  userSchema.methods.validateUserProps = function () {
+  userSchema.methods.validateUserProps = () => {
     // username should be at least 3 characters and password 8
     return this.username.length > 2 && this.password.length > 7
   }
@@ -40,6 +40,7 @@ db.once('open', function() {
       createUser(password: String!, username: String!): userSchema
       listUsers: [String]
       removeUser(username: String!): String
+      updatePassword(username: String!, password: String!, newPassword: String!): userSchema
     }
   `);
 
@@ -48,39 +49,40 @@ db.once('open', function() {
     createUser: (args) => {
       var userToCreate = new User({ username: args.username, password: args.password });
 
-      if (userToCreate.validateUserProps()) {
-        return new Promise((resolve, reject) => {
-          userToCreate.save(function (err, userToCreate) {
-            if (err) {
-              console.error(err);
-              reject(err)
-            }
-            resolve()
-          })
+      if (userToCreate.validateUserProps()) {        
+        userToCreate.save(function (err, userToCreate) {
+          if (err) {
+            console.error(err)
+            throw err
+          }
+          return userToCreate
         })
-        .then(function() {
-          return userToCreate;
-        });
       } else {
         throw 'password or username is not long enough'
       }
     },
     removeUser: (args) => {
-      var userToRemove = new User({ username: args.username });
-
-      var userInDb = db.collection('users').find({username: args.username})
+      var userInDb = User.find({username: args.username})
       if (userInDb) {
         db.collection('users').remove({username: args.username})
       }
       return 'User has been deleted'
     },
-    listUsers: () => {
-      return db.collection('users').find({}, { _id: 0, username: 1}).toArray()
-        .then(function(res) {
-          return res
-            .map(item => new User({username: item.username}))
-            .map(item => item.username)
+    updatePassword: (args) => {
+      var userInDb = User.findOne({username: args.username})
+        .then((res) => {
+          if (res.password === args.password) {
+            User.findOneAndUpdate({username: args.username}, {$set:{password: args.newPassword}}, {new: true}, (err) => {
+              if (err) {
+                console.error(err)
+              }
+            })
+          }
         })
+    },
+    listUsers: () => {
+      return User.find({}, { _id: 0, username: 1})
+        .then((result) => result.map(item => item.username))
     },
   };
 
